@@ -32,6 +32,7 @@ function RHF(ints::IntegralHelper{Float64}, Alg::A) where A <: RHFAlgorithm
     RHF(ints, C, Λ, Alg)
 end
 
+## nkitamura
 function RHF(wfn::RHF, Alg::A) where A <: RHFAlgorithm
 
     Fermi.HartreeFock.hf_header()
@@ -64,6 +65,7 @@ function RHF(wfn::RHF, Alg::A) where A <: RHFAlgorithm
     RHF(intsB, Cb, Λ, Alg)
 end
 
+## nkitamura
 function RHF(ints::IntegralHelper{Float64, <:AbstractERI, AtomicOrbitals}, C::AbstractMatrix, Λ::AbstractMatrix, Alg::RHFa)
 
     molecule = ints.molecule

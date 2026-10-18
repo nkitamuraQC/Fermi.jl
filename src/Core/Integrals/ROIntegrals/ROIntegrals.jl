@@ -14,6 +14,8 @@ function compute!(I::IntegralHelper{T,<:AbstractERI,<:AbstractRestrictedOrbitals
         compute_T!(I, aoints)
     elseif entry == "V"
         compute_V!(I, aoints)
+    elseif entry == "dipole"
+        compute_dipole!(I, aoints)
     elseif entry == "ERI"
         compute_ERI!(I, aoints)
     elseif entry == "OOOO"

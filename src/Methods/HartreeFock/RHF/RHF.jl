@@ -3,9 +3,10 @@ using Fermi.DIIS
 using TensorOperations
 using LinearAlgebra
 using Formatting
+using Fermi.PhysicalConstants: bohr_to_angstrom
 import Base: show
 
-export RHF
+export RHF, dipole_moment, Polarizability, polarizability
 
 """
     Fermi.HartreeFock.RHFAlgorithm
@@ -89,6 +90,56 @@ function RHF(x...)
         throw(FermiException("invalid arguments for RHF method: $args"))
     end
 end
+
+function dipole_moment(wfn::RHF)
+    ints = Fermi.Integrals.IntegralHelper{Float64}(molecule=wfn.molecule, basis=wfn.orbitals.basis)
+    mu_ao = ints["dipole"]
+
+    Co = wfn.orbitals.C[:, 1:wfn.ndocc]
+    D = 2.0 * Co * transpose(Co)
+
+    electronic = zeros(Float64, 3)
+    for i in 1:3
+        electronic[i] = sum(D .* mu_ao[:, :, i])
+    end
+
+    nuclear = zeros(Float64, 3)
+    for atom in wfn.molecule.atoms
+        nuclear .+= atom.Z .* (atom.xyz ./ bohr_to_angstrom)
+    end
+
+    return nuclear .- electronic
+end
+
+function _electric_field_component(evec, direction::Integer)
+    1 <= direction <= 3 || throw(FermiException("Electric-field direction must be 1, 2, or 3."))
+    length(evec) == 3 || throw(FermiException("Electric field must have three components."))
+    return Float64(evec[direction])
+end
+
+function RHF(evec::AbstractVector, direction::Integer=1)
+    RHF(IntegralHelper{Float64}(), evec, direction, get_rhf_alg())
+end
+
+function RHF(mol::Molecule, evec::AbstractVector, direction::Integer=1)
+    RHF(IntegralHelper{Float64}(molecule=mol), evec, direction, get_rhf_alg())
+end
+
+function Polarizability(mol::Molecule=Molecule(); step::Real=1.0e-3, Alg::RHFAlgorithm=get_rhf_alg())
+    step > 0 || throw(FermiException("Finite-difference step must be positive."))
+    alpha = zeros(Float64, 3, 3)
+    for direction in 1:3
+        evec = zeros(Float64, 3)
+        evec[direction] = Float64(step)
+        plus = RHF(mol, evec, direction, Alg)
+        evec[direction] = -Float64(step)
+        minus = RHF(mol, evec, direction, Alg)
+        alpha[:, direction] .= (dipole_moment(plus) - dipole_moment(minus)) / (2 * step)
+    end
+    return alpha
+end
+
+polarizability(args...; kwargs...) = Polarizability(args...; kwargs...)
 
 """
     Fermi.HartreeFock.get_rhf_alg()

@@ -9,6 +9,10 @@ function RHF_core_guess(ints::IntegralHelper)
     S = ints["S"]
     Λ = S^(-1/2)
     F = ints["T"] + ints["V"]
+    return RHF_core_guess(ints, F, Λ)
+end
+
+function RHF_core_guess(ints::IntegralHelper, F::AbstractMatrix, Λ::AbstractMatrix)
     Ft = Λ*F*Λ'
 
     # Get orbital energies and transformed coefficients

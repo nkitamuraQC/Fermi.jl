@@ -6,6 +6,8 @@ function compute!(I::IntegralHelper{<:AbstractFloat,<:AbstractERI,AtomicOrbitals
         compute_T!(I)
     elseif entry == "V" 
         compute_V!(I)
+    elseif entry == "dipole" 
+        compute_dipole!(I)
     elseif entry == "ERI" 
         compute_ERI!(I)
     else
@@ -26,6 +28,11 @@ end
 function compute_V!(I::IntegralHelper{T, E, AtomicOrbitals}) where {T<:AbstractFloat, E<:AbstractERI}
     bs = I.orbitals.basisset
     I.cache["V"] = T.(nuclear(bs))
+end
+
+function compute_dipole!(I::IntegralHelper{T, E, AtomicOrbitals}) where {T<:AbstractFloat, E<:AbstractERI}
+    bs = I.orbitals.basisset
+    I.cache["dipole"] = T.(GaussianBasis.dipole(bs))
 end
 
 function compute_ERI!(I::IntegralHelper{T, E, AtomicOrbitals}) where {T<:AbstractFloat, E<:AbstractDFERI}

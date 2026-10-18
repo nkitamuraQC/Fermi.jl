@@ -32,6 +32,19 @@ function RHF(ints::IntegralHelper{Float64}, Alg::A) where A <: RHFAlgorithm
     RHF(ints, C, Λ, Alg)
 end
 
+function RHF(ints::IntegralHelper{Float64}, evec, direction::Integer, Alg::RHFa)
+    field = _electric_field_component(evec, direction)
+    S = ints["S"]
+    Λ = S^(-1/2)
+    H = ints["T"] + ints["V"] + field .* ints["dipole"][:, :, direction]
+    C, Λ = RHF_core_guess(ints, H, Λ)
+    RHF(ints, C, Λ, Alg; hcore=H)
+end
+
+function RHF(mol::Molecule, evec, direction::Integer, Alg::RHFa)
+    RHF(IntegralHelper{Float64}(molecule=mol), evec, direction, Alg)
+end
+
 ## nkitamura
 function RHF(wfn::RHF, Alg::A) where A <: RHFAlgorithm
 
@@ -66,7 +79,7 @@ function RHF(wfn::RHF, Alg::A) where A <: RHFAlgorithm
 end
 
 ## nkitamura
-function RHF(ints::IntegralHelper{Float64, <:AbstractERI, AtomicOrbitals}, C::AbstractMatrix, Λ::AbstractMatrix, Alg::RHFa)
+function RHF(ints::IntegralHelper{Float64, <:AbstractERI, AtomicOrbitals}, C::AbstractMatrix, Λ::AbstractMatrix, Alg::RHFa; hcore=nothing)
 
     molecule = ints.molecule
     output(Fermi.string_repr(molecule))
@@ -115,6 +128,7 @@ function RHF(ints::IntegralHelper{Float64, <:AbstractERI, AtomicOrbitals}, C::Ab
     T = ints["T"]
     V = ints["V"]
     ERI = ints["ERI"]
+    H = hcore === nothing ? T + V : hcore
 
     # Form the density matrix from occupied subset of guess coeffs
     Co = C[:, 1:ndocc]
@@ -124,11 +138,11 @@ function RHF(ints::IntegralHelper{Float64, <:AbstractERI, AtomicOrbitals}, C::Ab
 
     # Build the inital Fock Matrix and diagonalize
     F = zeros(Float64,nao,nao)
-    build_fock!(F, T + V, D, ints)
+    build_fock!(F, H, D, ints)
     F̃ = deepcopy(F)
     D̃ = deepcopy(D)
     N = length(D) # Number of elements in D (For RMS computation)
-    output(" Guess Energy {:20.14f}", RHFEnergy(D,T+V,F))
+    output(" Guess Energy {:20.14f}", RHFEnergy(D,H,F))
 
     output("\n Iter.   {:>15} {:>10} {:>10} {:>8} {:>8} {:>8}", "E[RHF]", "ΔE", "Dᵣₘₛ", "t", "DIIS", "damp")
     output(repeat("-",80))
@@ -149,8 +163,8 @@ function RHF(ints::IntegralHelper{Float64, <:AbstractERI, AtomicOrbitals}, C::Ab
             @tensor D[u,v] = Co[u,m]*Co[v,m]
 
             # Build the Fock Matrix
-            build_fock!(F, T + V, D, ints)
-            Eelec = RHFEnergy(D, T + V, F)
+            build_fock!(F, H, D, ints)
+            Eelec = RHFEnergy(D, H, F)
 
             # Compute Energy
             Enew = Eelec + Vnuc

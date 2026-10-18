@@ -119,6 +119,48 @@ ref_grads = Dict{String, Matrix}(
     mol = Molecule()
     @test_throws Fermi.Options.FermiException @energy mol => rhf
 
+    # Test dipole moment from density and AO dipole integrals
+    @reset
+    @set printstyle none
+    @set basis sto-3g
+    @set molstring """
+    O  0.000000000000  0.000000000000  0.000000000000
+    H  0.000000000000  0.000000000000  1.810000000000
+    H  1.515000000000  0.000000000000  -0.100000000000
+    """
+    wfn = @energy rhf
+    ints = Fermi.Integrals.IntegralHelper(molecule=wfn.molecule, basis=wfn.orbitals.basis)
+    ao_dip = ints["dipole"]
+    Co = wfn.orbitals.C[:, 1:wfn.ndocc]
+    D = 2 * Co * transpose(Co)
+    μ_ref = zeros(3)
+    for x in 1:3
+        μ_ref[x] = sum(D .* ao_dip[:, :, x])
+    end
+    μ_nuc = zeros(3)
+    for atom in wfn.molecule.atoms
+        μ_nuc .+= atom.Z .* (atom.xyz ./ Fermi.PhysicalConstants.bohr_to_angstrom)
+    end
+    μ = Fermi.HartreeFock.dipole_moment(wfn)
+    @test isapprox(μ, μ_nuc .- μ_ref, rtol=1e-8)
+
+    # Test electric-field RHF and finite-difference polarizability
+    field_wfn = Fermi.HartreeFock.RHF(wfn.molecule, [1.0e-3, 0.0, 0.0], 1)
+    @test Fermi.HartreeFock.dipole_moment(field_wfn) != μ
+    α = Fermi.HartreeFock.Polarizability(wfn.molecule; step=1.0e-3)
+    @test size(α) == (3, 3)
+    @test all(isfinite, α)
+
+    # Compare against dip_polar.txt (PySCF, finite-difference step = 1e-4)
+    @test isapprox(wfn.energy, -74.6014867056223, atol=1.0e-7)
+    au_to_debye = 2.541746473
+    dip_polar_ref_debye = [0.784831468, -2.13891233e-16, 0.462251866]
+    @test isapprox(μ .* au_to_debye, dip_polar_ref_debye, atol=1.0e-6)
+    α_reference = Fermi.HartreeFock.Polarizability(wfn.molecule; step=1.0e-4)
+    @test isapprox(α_reference[1, 1], 14.5388838, atol=1.0e-4)
+    @test isapprox(α_reference[2, 2], 4.47503426e-2, atol=1.0e-4)
+    @test isapprox(α_reference[3, 3], 23.3882357, atol=1.0e-4)
+
     @reset
     @set printstyle none
     @testset "Conventional" begin
